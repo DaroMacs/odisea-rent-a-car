@@ -16,4 +16,8 @@ pub enum Error {
     BalanceNotAvailableForAmountRequested = 9,
     SelfRentalNotAllowed = 10,
     CarAlreadyRented = 11,
-    CarAlreadyExist = 12,}
+    CarAlreadyExist = 12,
+    AdminNotFound = 13,
+MathOverflow = 14,
+    UnderFlow = 15,
+}

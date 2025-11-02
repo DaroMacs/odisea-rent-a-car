@@ -1,4 +1,6 @@
 use soroban_sdk::{Address, Env};
+use crate::storage::types::error::Error;
+
 use super::types::storage::DataKey;
 
 pub(crate) fn has_admin(env: &Env) -> bool {
@@ -7,10 +9,10 @@ pub(crate) fn has_admin(env: &Env) -> bool {
     env.storage().instance().has(&key)
 }
 
-pub(crate) fn read_admin(env: &Env) -> Address {
+pub(crate) fn read_admin(env: &Env) -> Result<Address, Error> {
     let key = DataKey::Admin;
 
-    env.storage().instance().get(&key).unwrap()
+    env.storage().instance().get(&key).ok_or(Error::AdminNotFound)
 }
 
 pub(crate) fn write_admin(env: &Env, admin: &Address) {
