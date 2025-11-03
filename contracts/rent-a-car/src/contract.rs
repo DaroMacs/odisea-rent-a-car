@@ -1,5 +1,5 @@
 use soroban_sdk::{contract, contractimpl, Address, Env};
-use crate::{events, interfaces::contract::RentACarContractTrait, methods::{public, token::token::token_transfer}, storage::{admin::{has_admin, read_admin, write_admin}, car::{has_car, read_car, remove_car, write_car}, contract_balance::{read_contract_balance, write_contract_balance}, rental::write_rental, structs::{car::Car, rental::Rental}, token::write_token, types::{car_status::CarStatus, error::Error}}};
+use crate::{events, interfaces::contract::RentACarContractTrait, methods::{public, token::token::token_transfer}, storage::{admin::{has_admin, read_admin, write_admin}, car::{has_car, read_car, remove_car, write_car}, commission::{decrement_admin_commission_balance, increment_admin_commission_balance, read_admin_commission_balance, read_commission_rate, write_commission_rate}, contract_balance::{read_contract_balance, write_contract_balance}, rental::write_rental, structs::{car::Car, rental::Rental}, token::write_token, types::{car_status::CarStatus, error::Error}}};
 
 #[contract]
 pub struct RentACarContract;
@@ -80,10 +80,21 @@ impl RentACarContractTrait for RentACarContract {
             return Err(Error::CarAlreadyRented);
         }
 
-        // Lógica del negocio
-        token_transfer(&env, &renter, &env.current_contract_address(), &amount);
+        // Get commission rate and calculate total amount including commission
+        let commission_rate = read_commission_rate(&env);
+        let total_amount = amount.checked_add(commission_rate).ok_or(Error::MathOverflow)?;
+
+        // Lógica del negocio - Transfer total amount from renter (includes commission)
+        token_transfer(&env, &renter, &env.current_contract_address(), &total_amount);
+
+        // Add commission to admin's commission balance
+        if commission_rate > 0 {
+            increment_admin_commission_balance(&env, commission_rate)?;
+            events::commission::commission_collected(env, amount, commission_rate);
+        }
 
         car.car_status = CarStatus::Rented;
+        // Owner's available_to_withdraw is just the rental amount (not including commission)
         car.available_to_withdraw = car.available_to_withdraw.checked_add(amount).ok_or(Error::MathOverflow)?;
 
         let rental = Rental {
@@ -93,7 +104,7 @@ impl RentACarContractTrait for RentACarContract {
 
         let mut contract_balance = read_contract_balance(&env);
         contract_balance = contract_balance
-    .checked_add(amount)
+    .checked_add(total_amount)
     .ok_or(Error::MathOverflow)?;
 
         
@@ -126,13 +137,13 @@ impl RentACarContractTrait for RentACarContract {
             return Err(Error::InsufficientBalance);
         }
 
-
         let mut contract_balance = read_contract_balance(&env);
 
         if amount > contract_balance {
             return Err(Error::BalanceNotAvailableForAmountRequested);
         }
 
+        // Transfer full amount to owner (commission was collected at rental time)
         token_transfer(&env, &env.current_contract_address(), &owner, &amount);
 
         car.available_to_withdraw =  car.available_to_withdraw.checked_sub(amount)
@@ -160,6 +171,38 @@ admin.require_auth();
 
         remove_car(env, &owner);
         events::remove_car::car_removed(env, owner);
+        Ok(())
+    }
+
+    fn set_commission(env: &Env, commission_rate: i128) -> Result<(), Error> {
+        let admin = read_admin(env)?;
+        admin.require_auth();
+
+        if commission_rate < 0 {
+            return Err(Error::AmountMustBePositive);
+        }
+
+        write_commission_rate(&env, &commission_rate);
+        events::commission::commission_set(env, commission_rate);
+
+        Ok(())
+    }
+
+    fn withdraw_commission(env: &Env) -> Result<(), Error> {
+        let admin = read_admin(env)?;
+        admin.require_auth();
+
+        let balance = read_admin_commission_balance(&env);
+
+        if balance <= 0 {
+            return Err(Error::InsufficientBalance);
+        }
+
+        token_transfer(&env, &env.current_contract_address(), &admin, &balance);
+        decrement_admin_commission_balance(&env, balance)?;
+
+        events::commission::commission_withdrawn(env, balance);
+
         Ok(())
     }
 }

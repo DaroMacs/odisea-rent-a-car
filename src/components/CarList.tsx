@@ -100,10 +100,12 @@ export const CarsList = ({ cars }: CarsListProps) => {
 
     if (selectedRole === UserRole.OWNER) {
       const amount = car.pricePerDay * 3 * ONE_XLM_IN_STROOPS;
+      const isDisabled = car.status !== CarStatus.AVAILABLE;
       return (
         <button
           onClick={() => void handlePayout(car.ownerAddress, amount)}
-          className="px-3 py-1 bg-green-600 text-white rounded font-semibold hover:bg-green-700 transition-colors cursor-pointer"
+          disabled={isDisabled}
+          className="px-3 py-1 bg-green-600 text-white rounded font-semibold hover:bg-green-700 transition-colors cursor-pointer disabled:bg-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-400"
         >
           Withdraw
         </button>

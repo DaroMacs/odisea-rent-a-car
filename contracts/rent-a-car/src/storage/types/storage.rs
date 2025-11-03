@@ -8,4 +8,6 @@ pub enum DataKey {
     Car(Address),                // auto asociado a un owner
     Rental(Address, Address),    // registro de alquiler entre renter y owner
     ContractBalance,            // balance del contrato
+    CommissionRate,             // tasa de comisión del administrador
+    AdminCommissionBalance,     // balance acumulado de comisiones del administrador
 }
