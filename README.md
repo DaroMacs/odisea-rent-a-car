@@ -1,3 +1,65 @@
+# Challenges
+1. Comisión del administrador
+<img width="1407" height="466" alt="image" src="https://github.com/user-attachments/assets/03b082c9-b209-4632-9bed-f52d2a53cbde" />
+
+```
+ // Get commission rate and calculate total amount including commission
+        let commission_rate = read_commission_rate(&env);
+        let total_amount = amount.checked_add(commission_rate).ok_or(Error::MathOverflow)?;
+
+        // Lógica del negocio - Transfer total amount from renter (includes commission)
+        token_transfer(&env, &renter, &env.current_contract_address(), &total_amount);
+
+        // Add commission to admin's commission balance
+        if commission_rate > 0 {
+            increment_admin_commission_balance(&env, commission_rate)?;
+            events::commission::commission_collected(env, amount, commission_rate);
+        }
+
+```
+
+```
+ fn set_commission(env: &Env, commission_rate: i128) -> Result<(), Error> {
+        let admin = read_admin(env)?;
+        admin.require_auth();
+
+        if commission_rate < 0 {
+            return Err(Error::AmountMustBePositive);
+        }
+
+        write_commission_rate(&env, &commission_rate);
+        events::commission::commission_set(env, commission_rate);
+
+        Ok(())
+    }
+
+    fn withdraw_commission(env: &Env) -> Result<(), Error> {
+        let admin = read_admin(env)?;
+        admin.require_auth();
+
+        let balance = read_admin_commission_balance(&env);
+
+        if balance <= 0 {
+            return Err(Error::InsufficientBalance);
+        }
+
+        token_transfer(&env, &env.current_contract_address(), &admin, &balance);
+        decrement_admin_commission_balance(&env, balance)?;
+
+        events::commission::commission_withdrawn(env, balance);
+
+        Ok(())
+    }
+```
+
+Retiro de owners restringido
+Los owners solo podrán retirar dinero cuando el auto esté devuelto.
+➜ Se valida que si no tiene fondos disponibles, el botón Withdraw debe estar deshabilitado.
+
+<img width="1571" height="352" alt="image" src="https://github.com/user-attachments/assets/c870b671-4b97-4276-9b2f-bea01b282b0b" />
+
+
+
 # Scaffold Stellar Frontend
 
 _To get started with Scaffold Stellar, visit its repo: [github.com/AhaLabs/scaffold-stellar](https://github.com/AhaLabs/scaffold-stellar)._
